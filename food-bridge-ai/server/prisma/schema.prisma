@@ -1,0 +1,159 @@
+// Prisma Schema for Food Bridge AI
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id               String            @id @default(uuid())
+  name             String
+  email            String            @unique
+  passwordHash     String
+  role             String            // 'DONOR', 'NGO', 'VOLUNTEER', 'ADMIN'
+  phone            String?
+  avatar           String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  organization     Organization?
+  volunteerProfile Volunteer?
+  donations        FoodDonation[]    @relation("DonorUser")
+  notifications    Notification[]
+  auditLogs        AuditLog[]
+}
+
+model Organization {
+  id                 String            @id @default(uuid())
+  userId             String            @unique
+  user               User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizationName   String
+  organizationType   String            // 'RESTAURANT', 'HOTEL', 'SUPERMARKET', 'NGO', 'FOOD_BANK', 'SHELTER', 'OTHER'
+  address            String
+  city               String            @default("Mumbai")
+  latitude           Float
+  longitude          Float
+  verificationStatus String            @default("PENDING") // 'PENDING', 'VERIFIED', 'REJECTED'
+  capacity           Float             @default(100) // Daily meals/kg capacity
+  contactPerson      String?
+  description        String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  requests           DonationRequest[]
+  foodMatches        FoodMatch[]
+}
+
+model FoodDonation {
+  id                  String            @id @default(uuid())
+  donorId             String
+  donor               User              @relation("DonorUser", fields: [donorId], references: [id])
+  foodName            String
+  category            String            // 'COOKED_MEALS', 'FRUITS', 'VEGETABLES', 'BAKERY', 'PACKAGED_FOOD', 'DAIRY', 'OTHER'
+  description         String
+  quantity            Float
+  unit                String            @default("kg") // 'kg', 'meals', 'packets', 'boxes'
+  preparationTime     DateTime
+  expiryTime          DateTime
+  pickupAddress       String
+  latitude            Float
+  longitude           Float
+  storageConditions   String            @default("ROOM_TEMP") // 'ROOM_TEMP', 'REFRIGERATED', 'FROZEN', 'WARM_HOT'
+  allergenInformation String            @default("None declared")
+  imageUrl            String?
+  status              String            @default("AVAILABLE") // 'AVAILABLE', 'REQUESTED', 'APPROVED', 'ASSIGNED', 'PICKED_UP', 'DELIVERED', 'EXPIRED', 'CANCELLED'
+  urgencyLevel        String            @default("NORMAL") // 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL', 'EXPIRED'
+  donorContact        String?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+
+  requests            DonationRequest[]
+  deliveries          Delivery[]
+  matches             FoodMatch[]
+}
+
+model DonationRequest {
+  id                String       @id @default(uuid())
+  donationId        String
+  donation          FoodDonation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  requestedQuantity Float
+  requestStatus     String       @default("PENDING") // 'PENDING', 'APPROVED', 'REJECTED', 'CANCELLED'
+  notes             String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  delivery          Delivery?
+}
+
+model Volunteer {
+  id               String       @id @default(uuid())
+  userId           String       @unique
+  user             User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability     Boolean      @default(true)
+  transportType    String       @default("MOTORCYCLE") // 'MOTORCYCLE', 'CAR', 'VAN', 'BICYCLE', 'ON_FOOT'
+  vehicleNumber    String?
+  currentLatitude  Float        @default(19.0760)
+  currentLongitude Float        @default(72.8777)
+  totalDeliveries  Int          @default(0)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  deliveries       Delivery[]
+}
+
+model Delivery {
+  id             String          @id @default(uuid())
+  donationId     String
+  donation       FoodDonation    @relation(fields: [donationId], references: [id])
+  requestId      String          @unique
+  request        DonationRequest @relation(fields: [requestId], references: [id])
+  volunteerId    String?
+  volunteer      Volunteer?      @relation(fields: [volunteerId], references: [id])
+  pickupTime     DateTime?
+  deliveryTime   DateTime?
+  deliveryStatus String          @default("ASSIGNED") // 'ASSIGNED', 'PICKED_UP', 'IN_TRANSIT', 'DELIVERED', 'CANCELLED'
+  proofImage     String?
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      String   @default("INFO") // 'INFO', 'REQUEST', 'STATUS', 'URGENT', 'ALERT'
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model FoodMatch {
+  id             String       @id @default(uuid())
+  donationId     String
+  donation       FoodDonation @relation(fields: [donationId], references: [id], onDelete: Cascade)
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  matchingScore  Float
+  matchingReason String
+  distanceKm     Float        @default(0)
+  createdAt      DateTime     @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String
+  details    String?
+  createdAt  DateTime @default(now())
+}
